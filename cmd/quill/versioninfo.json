@@ -1,0 +1,30 @@
+{
+  "FixedFileInfo": {
+    "FileVersion": {"Major": 1, "Minor": 0, "Patch": 0, "Build": 0},
+    "ProductVersion": {"Major": 1, "Minor": 0, "Patch": 0, "Build": 0},
+    "FileFlagsMask": "3f",
+    "FileFlags": "",
+    "FileOS": "040004",
+    "FileType": "01",
+    "FileSubType": "00"
+  },
+  "StringFileInfo": {
+    "Comments": "",
+    "CompanyName": "Birbus Team",
+    "FileDescription": "Quill - Offline Voice Dictation",
+    "FileVersion": "1.0.0.0",
+    "InternalName": "quill",
+    "LegalCopyright": "MIT License",
+    "OriginalFilename": "quill.exe",
+    "ProductName": "Quill",
+    "ProductVersion": "1.0.0.0"
+  },
+  "VarFileInfo": {
+    "Translation": {
+      "LangID": "0409",
+      "CharsetID": "04B0"
+    }
+  },
+  "IconPath": "",
+  "ManifestPath": "quill.manifest"
+}

@@ -1,0 +1,82 @@
+name: Build Quill
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install goversioninfo
+        run: go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
+
+      - name: Generate version resource
+        run: |
+          cd cmd/quill
+          goversioninfo -o resource_windows.syso
+
+      - name: Build exe
+        run: |
+          go build -ldflags="-H windowsgui -s -w" -o quill.exe ./cmd/quill
+          dir quill.exe
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Create installer
+        shell: cmd
+        run: |
+          "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quill-Setup
+          path: Quill-Setup.exe
+          retention-days: 30
+
+      - name: Upload portable exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: quill-portable
+          path: quill.exe
+          retention-days: 30
+
+  release:
+    name: Publish Release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: needs.build-windows.result == 'success'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Quill-Setup
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: quill-portable
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0.0
+          name: Quill v1.0.0
+          make_latest: true
+          files: |
+            Quill-Setup.exe
+            quill.exe
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
