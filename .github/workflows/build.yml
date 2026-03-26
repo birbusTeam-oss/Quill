@@ -33,33 +33,40 @@ jobs:
       - name: Download whisper.cpp
         shell: pwsh
         run: |
-          mkdir whisper
+          mkdir Quill
+          Copy-Item quill.exe Quill/
           Invoke-WebRequest -Uri "https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.4/whisper-bin-x64.zip" -OutFile whisper-bin.zip
           Expand-Archive whisper-bin.zip -DestinationPath whisper-extract
-          Copy-Item whisper-extract/Release/whisper-cli.exe whisper/whisper.exe
-          Copy-Item whisper-extract/Release/ggml-base.dll whisper/
-          Copy-Item whisper-extract/Release/ggml-cpu.dll whisper/
-          Copy-Item whisper-extract/Release/ggml.dll whisper/
-          Copy-Item whisper-extract/Release/whisper.dll whisper/
+          Copy-Item whisper-extract/Release/whisper-cli.exe Quill/whisper.exe
+          Copy-Item whisper-extract/Release/ggml-base.dll Quill/
+          Copy-Item whisper-extract/Release/ggml-cpu.dll Quill/
+          Copy-Item whisper-extract/Release/ggml.dll Quill/
+          Copy-Item whisper-extract/Release/whisper.dll Quill/
 
       - name: Download whisper model
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin" -OutFile whisper/ggml-base.en.bin
+          Invoke-WebRequest -Uri "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin" -OutFile Quill/ggml-base.en.bin
 
-      - name: Install NSIS
-        run: choco install nsis -y --no-progress
-
-      - name: Create installer
-        shell: cmd
+      - name: Verify bundle contents
+        shell: pwsh
         run: |
-          "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+          Write-Host "=== Bundle contents ==="
+          Get-ChildItem Quill/ | Format-Table Name, Length
+          if (!(Test-Path "Quill/whisper.exe")) { Write-Error "whisper.exe MISSING!" }
+          if (!(Test-Path "Quill/quill.exe")) { Write-Error "quill.exe MISSING!" }
+          if (!(Test-Path "Quill/ggml-base.en.bin")) { Write-Error "model MISSING!" }
 
-      - name: Upload installer
+      - name: Create zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path Quill/* -DestinationPath Quill-v1.0.4-windows.zip
+
+      - name: Upload zip
         uses: actions/upload-artifact@v4
         with:
-          name: Quill-Setup
-          path: Quill-Setup.exe
+          name: Quill-Bundle
+          path: Quill-v1.0.4-windows.zip
           retention-days: 30
 
   release:
@@ -72,29 +79,27 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: Quill-Setup
+          name: Quill-Bundle
 
       - name: Publish release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0.3
-          name: Quill v1.0.3
+          tag_name: v1.0.4
+          name: Quill v1.0.4
           make_latest: true
           body: |
-            ## Quill v1.0.0
+            ## Quill v1.0.4
 
-            Offline voice dictation for Windows. Hold Ctrl+Alt, speak, text appears.
+            Offline voice dictation for Windows.
 
-            **100% offline. Zero cloud. Zero API keys. One installer.**
+            ### Install
+            1. Download **Quill-v1.0.4-windows.zip**
+            2. Extract to any folder
+            3. Run **quill.exe**
+            4. Hold **Ctrl+Alt**, speak, release
 
-            ### Download & Install
-            1. Download **Quill-Setup.exe** below
-            2. Run the installer
-            3. Hold **Ctrl+Alt** to dictate
-
-            Everything included — Quill + whisper engine + English model.
-            No extra downloads needed.
-          files: Quill-Setup.exe
+            Everything included. No installer needed.
+          files: Quill-v1.0.4-windows.zip
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
