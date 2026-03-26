@@ -36,7 +36,7 @@ jobs:
           mkdir whisper
           Invoke-WebRequest -Uri "https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.4/whisper-bin-x64.zip" -OutFile whisper-bin.zip
           Expand-Archive whisper-bin.zip -DestinationPath whisper-extract
-          Copy-Item whisper-extract/Release/whisper-cli.exe whisper/
+          Copy-Item whisper-extract/Release/whisper-cli.exe whisper/whisper.exe
           Copy-Item whisper-extract/Release/ggml-base.dll whisper/
           Copy-Item whisper-extract/Release/ggml-cpu.dll whisper/
           Copy-Item whisper-extract/Release/ggml.dll whisper/
@@ -77,8 +77,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0.2
-          name: Quill v1.0.2
+          tag_name: v1.0.3
+          name: Quill v1.0.3
           make_latest: true
           body: |
             ## Quill v1.0.0

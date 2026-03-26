@@ -1,13 +1,13 @@
 !define APP_NAME "Quill"
-!define APP_VERSION "1.0.2"
+!define APP_VERSION "1.0.3"
 !define APP_EXE "quill.exe"
 
-VIProductVersion "1.0.2.0"
+VIProductVersion "1.0.3.0"
 VIAddVersionKey "ProductName" "Quill"
 VIAddVersionKey "CompanyName" "Birbus Team"
 VIAddVersionKey "FileDescription" "Quill - Offline Voice Dictation"
-VIAddVersionKey "FileVersion" "1.0.2"
-VIAddVersionKey "ProductVersion" "1.0.2"
+VIAddVersionKey "FileVersion" "1.0.3"
+VIAddVersionKey "ProductVersion" "1.0.3"
 VIAddVersionKey "LegalCopyright" "MIT License"
 
 Name "${APP_NAME} ${APP_VERSION}"
@@ -32,9 +32,8 @@ Section "Install"
     ; Main app
     File "${APP_EXE}"
     
-    ; Whisper engine + DLLs
-    File "whisper\whisper-cli.exe"
-    Rename "$INSTDIR\whisper-cli.exe" "$INSTDIR\whisper.exe"
+    ; Whisper engine (already renamed to whisper.exe by CI)
+    File "whisper\whisper.exe"
     File "whisper\ggml-base.dll"
     File "whisper\ggml-cpu.dll"
     File "whisper\ggml.dll"
