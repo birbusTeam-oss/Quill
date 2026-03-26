@@ -2,6 +2,7 @@ package transcriber
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,20 +31,27 @@ func New(whisperPath, modelPath string, removeFillers bool) *Transcriber {
 	if whisperPath == "" {
 		// Look next to our binary first (use absolute resolved path)
 		exe, err := os.Executable()
+		log.Printf("[whisper] os.Executable() = %q (err=%v)", exe, err)
 		if err == nil {
 			exe, _ = filepath.EvalSymlinks(exe)
 			candidate := filepath.Join(filepath.Dir(exe), "whisper.exe")
 			absCandidate, _ := filepath.Abs(candidate)
+			log.Printf("[whisper] Checking: %s", absCandidate)
 			if _, err := os.Stat(absCandidate); err == nil {
 				whisperPath = absCandidate
+				log.Printf("[whisper] Found next to binary: %s", whisperPath)
+			} else {
+				log.Printf("[whisper] Not found: %v", err)
 			}
 		}
 		if whisperPath == "" {
 			// Try current working directory
 			if cwd, err := os.Getwd(); err == nil {
 				candidate := filepath.Join(cwd, "whisper.exe")
+				log.Printf("[whisper] Checking CWD: %s", candidate)
 				if _, err := os.Stat(candidate); err == nil {
 					whisperPath = candidate
+					log.Printf("[whisper] Found in CWD: %s", whisperPath)
 				}
 			}
 		}
@@ -51,10 +59,13 @@ func New(whisperPath, modelPath string, removeFillers bool) *Transcriber {
 			// Last resort: look in PATH
 			if found, err := exec.LookPath("whisper.exe"); err == nil {
 				whisperPath = found
+				log.Printf("[whisper] Found in PATH: %s", whisperPath)
 			} else {
+				log.Printf("[whisper] Not in PATH either, using bare name")
 				whisperPath = "whisper.exe"
 			}
 		}
+		log.Printf("[whisper] Final path: %s", whisperPath)
 	}
 	if modelPath == "" {
 		exe, err2 := os.Executable()
