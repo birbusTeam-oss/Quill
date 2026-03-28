@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"unicode"
 )
 
@@ -102,6 +103,10 @@ func (t *Transcriber) Transcribe(wavPath string) (string, error) {
 	}
 
 	cmd := exec.Command(t.WhisperPath, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("whisper failed: %w\noutput: %s", err, string(out))

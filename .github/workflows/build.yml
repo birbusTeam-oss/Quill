@@ -67,11 +67,11 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.1.1
-          name: Quill v1.1.1
+          tag_name: v1.1.2
+          name: Quill v1.1.2
           make_latest: true
           body: |
-            ## Quill v1.1.1
+            ## Quill v1.1.2
 
             Offline voice dictation for Windows.
 
