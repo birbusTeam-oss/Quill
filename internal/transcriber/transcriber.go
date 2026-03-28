@@ -31,6 +31,13 @@ type Transcriber struct {
 // New creates a transcriber. If whisperPath is empty, it looks for whisper.exe
 // next to the quill binary, then in PATH.
 func New(whisperPath, modelPath string, removeFillers bool) *Transcriber {
+	// If whisperPath from config doesn't actually exist, ignore it
+	if whisperPath != "" {
+		if _, err := os.Stat(whisperPath); err != nil {
+			log.Printf("[whisper] Config path %q doesn't exist, ignoring", whisperPath)
+			whisperPath = ""
+		}
+	}
 	// Use %APPDATA%/Quill as the data directory (survives re-extractions)
 	dataDir := filepath.Join(os.Getenv("APPDATA"), "Quill")
 	os.MkdirAll(dataDir, 0755)
@@ -41,10 +48,12 @@ func New(whisperPath, modelPath string, removeFillers bool) *Transcriber {
 
 	// Check if whisper.exe exists in data dir
 	if whisperPath == "" {
-		if _, err := os.Stat(whisperExe); err == nil {
+		log.Printf("[whisper] Looking for: %s", whisperExe)
+		if info, err := os.Stat(whisperExe); err == nil {
 			whisperPath = whisperExe
-			log.Printf("[whisper] Found: %s", whisperPath)
+			log.Printf("[whisper] Found: %s (size=%d)", whisperPath, info.Size())
 		} else {
+			log.Printf("[whisper] Stat error: %v", err)
 			// Auto-download whisper.cpp on first run
 			log.Printf("[whisper] Not found — downloading whisper.cpp...")
 			if err := downloadWhisper(dataDir); err != nil {
