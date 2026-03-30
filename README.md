@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/quill-logo.png" width="120" alt="Quill logo" />
+  <img src="assets/quill-logo.png" width="100" alt="Quill logo" />
 </p>
 
 <h1 align="center">Quill ✒️</h1>
