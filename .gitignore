@@ -1,2 +1,7 @@
 *.exe
+*.zip
 *.bin
+*.syso
+*.log
+release/
+*.syso
