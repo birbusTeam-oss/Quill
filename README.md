@@ -1,6 +1,10 @@
-# Quill ✒️
+<p align="center">
+  <img src="assets/quill-logo.png" width="120" alt="Quill logo" />
+</p>
 
-**Voice dictation for Windows. Offline. Fast. Zero cloud.**
+<h1 align="center">Quill ✒️</h1>
+
+<p align="center"><strong>Voice dictation for Windows. Offline. Fast. Zero cloud.</strong></p>
 
 Hold a hotkey, speak, release — your words appear wherever your cursor is.
 
