@@ -1,4 +1,4 @@
-module github.com/birbusTeam-oss/quill
+module github.com/birbusTeam-oss/Yappie
 
 go 1.24.1
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/birbusTeam-oss/quill/internal/config"
+	"github.com/birbusTeam-oss/Yappie/internal/config"
 )
 
 // Manager handles text snippet expansion.

@@ -7,15 +7,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/birbusTeam-oss/quill/internal/audio"
-	"github.com/birbusTeam-oss/quill/internal/config"
-	"github.com/birbusTeam-oss/quill/internal/history"
-	"github.com/birbusTeam-oss/quill/internal/hotkey"
-	"github.com/birbusTeam-oss/quill/internal/injector"
-	"github.com/birbusTeam-oss/quill/internal/snippets"
-	"github.com/birbusTeam-oss/quill/internal/transcriber"
-	"github.com/birbusTeam-oss/quill/internal/overlay"
-	"github.com/birbusTeam-oss/quill/internal/tray"
+	"github.com/birbusTeam-oss/Yappie/internal/audio"
+	"github.com/birbusTeam-oss/Yappie/internal/config"
+	"github.com/birbusTeam-oss/Yappie/internal/history"
+	"github.com/birbusTeam-oss/Yappie/internal/hotkey"
+	"github.com/birbusTeam-oss/Yappie/internal/injector"
+	"github.com/birbusTeam-oss/Yappie/internal/snippets"
+	"github.com/birbusTeam-oss/Yappie/internal/transcriber"
+	"github.com/birbusTeam-oss/Yappie/internal/overlay"
+	"github.com/birbusTeam-oss/Yappie/internal/tray"
 )
 
 func main() {

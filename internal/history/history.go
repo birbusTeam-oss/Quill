@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/birbusTeam-oss/quill/internal/config"
+	"github.com/birbusTeam-oss/Yappie/internal/config"
 )
 
 const maxEntries = 50
