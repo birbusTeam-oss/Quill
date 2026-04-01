@@ -9,12 +9,22 @@ import (
 
 // Config holds all Yappie settings.
 type Config struct {
-	Hotkey            string `json:"hotkey"`
-	Model             string `json:"model"`
-	WhisperPath       string `json:"whisper_path"`
-	ModelPath         string `json:"model_path"`
-	RemoveFillers     bool   `json:"remove_fillers"`
-	LogTranscriptions bool   `json:"log_transcriptions"`
+	// Input
+	Hotkey string `json:"hotkey"`
+
+	// Transcription
+	Model         string `json:"model"`
+	Language      string `json:"language"`
+	WhisperPath   string `json:"whisper_path"`
+	ModelPath     string `json:"model_path"`
+	RemoveFillers bool   `json:"remove_fillers"`
+	Threads       int    `json:"threads"`
+
+	// Behavior
+	LogTranscriptions  bool `json:"log_transcriptions"`
+	PlaySounds         bool `json:"play_sounds"`
+	AutoCapitalize     bool `json:"auto_capitalize"`
+	AddPunctuation     bool `json:"add_punctuation"`
 
 	mu   sync.RWMutex
 	path string
@@ -23,12 +33,17 @@ type Config struct {
 // DefaultConfig returns config with sane defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		Hotkey:            "ctrl+alt",
-		Model:             "base.en",
-		WhisperPath:       "whisper.exe",
-		ModelPath:         "",
-		RemoveFillers:     true,
-		LogTranscriptions: true,
+		Hotkey:             "ctrl+alt",
+		Model:              "tiny.en",
+		Language:           "en",
+		WhisperPath:        "",
+		ModelPath:          "",
+		RemoveFillers:      true,
+		Threads:            4,
+		LogTranscriptions:  true,
+		PlaySounds:         true,
+		AutoCapitalize:     true,
+		AddPunctuation:     true,
 	}
 }
 
@@ -69,11 +84,20 @@ func Load() (*Config, error) {
 		return DefaultConfig(), err
 	}
 
-	cfg := DefaultConfig() // start with defaults so missing fields get filled
+	cfg := DefaultConfig()
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return DefaultConfig(), err
 	}
 	cfg.path = p
+
+	// Validate
+	if cfg.Threads < 1 {
+		cfg.Threads = 4
+	}
+	if cfg.Language == "" {
+		cfg.Language = "en"
+	}
+
 	return cfg, nil
 }
 
@@ -98,7 +122,7 @@ func (c *Config) Save() error {
 	return os.WriteFile(p, data, 0644)
 }
 
-// Get returns a thread-safe copy of the hotkey string.
+// GetHotkey returns a thread-safe copy of the hotkey string.
 func (c *Config) GetHotkey() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

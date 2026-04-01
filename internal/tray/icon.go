@@ -5,46 +5,86 @@ import (
 	"encoding/binary"
 	"image"
 	"image/color"
+	"math"
 )
 
-// generateIcon creates a simple 16x16 ICO with a yappie-like design (purple mouth/speech bubble).
+// generateIcon creates a 16x16 ICO with a speech bubble / mouth icon — the Yappie brand.
 func generateIcon() []byte {
-	// Create 16x16 RGBA image
 	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
 
-	// Fill transparent
+	// Clear transparent
 	for y := 0; y < 16; y++ {
 		for x := 0; x < 16; x++ {
 			img.Set(x, y, color.RGBA{0, 0, 0, 0})
 		}
 	}
 
-	// Draw a simple mouth/speech bubble shape
-	blue := color.RGBA{66, 133, 244, 255}  // Google blue
-	dark := color.RGBA{25, 50, 100, 255}    // dark blue
-	gold := color.RGBA{255, 193, 7, 255}    // gold tip
+	purple := color.RGBA{139, 92, 246, 255}       // Yappie purple
+	purpleLight := color.RGBA{167, 139, 250, 255}  // Lighter purple
+	white := color.RGBA{255, 255, 255, 255}
 
-	// Pen body (diagonal line)
-	penPixels := [][2]int{
-		{3, 12}, {4, 11}, {5, 10}, {6, 9}, {7, 8},
-		{8, 7}, {9, 6}, {10, 5}, {11, 4}, {12, 3},
-		{4, 12}, {5, 11}, {6, 10}, {7, 9}, {8, 8},
-		{9, 7}, {10, 6}, {11, 5}, {12, 4}, {13, 3},
-	}
-	for _, p := range penPixels {
-		img.Set(p[0], p[1], blue)
+	// Draw speech bubble body (rounded rectangle 2,1 to 13,10)
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			// Rounded rect: center at (7.5, 5), half-size (5.5, 4.5), radius 3
+			dx := math.Abs(float64(x)-7.5) - 2.5
+			dy := math.Abs(float64(y)-5.0) - 1.5
+			if dx < 0 { dx = 0 }
+			if dy < 0 { dy = 0 }
+			dist := math.Sqrt(dx*dx+dy*dy) - 3.0
+			if dist < -0.5 {
+				img.Set(x, y, purple)
+			} else if dist < 0.5 {
+				a := uint8(255 * (0.5 - dist))
+				img.Set(x, y, color.RGBA{purple.R, purple.G, purple.B, a})
+			}
+		}
 	}
 
-	// Pen tip
-	tipPixels := [][2]int{{2, 13}, {3, 13}, {2, 14}}
-	for _, p := range tipPixels {
-		img.Set(p[0], p[1], gold)
+	// Speech bubble tail (bottom-left triangle)
+	tailPixels := [][2]int{
+		{4, 11}, {5, 11}, {6, 11},
+		{3, 12}, {4, 12}, {5, 12},
+		{2, 13}, {3, 13},
+	}
+	for _, p := range tailPixels {
+		img.Set(p[0], p[1], purple)
 	}
 
-	// Pen top
-	topPixels := [][2]int{{13, 2}, {14, 1}, {13, 1}, {14, 2}}
-	for _, p := range topPixels {
-		img.Set(p[0], p[1], dark)
+	// Sound waves (right side) — two arcs
+	for _, wave := range []struct{ cx, r float64; col color.RGBA }{
+		{13.0, 2.5, purpleLight},
+		{13.0, 4.5, purpleLight},
+	} {
+		for y := 0; y < 16; y++ {
+			for x := 0; x < 16; x++ {
+				dx := float64(x) - wave.cx
+				dy := float64(y) - 5.0
+				dist := math.Sqrt(dx*dx+dy*dy)
+				if dx > 0 && math.Abs(dist-wave.r) < 0.7 && math.Abs(dy) < wave.r*0.7 {
+					a := uint8(180 * (1.0 - math.Abs(dist-wave.r)/0.7))
+					existing := img.RGBAAt(x, y)
+					if existing.A == 0 {
+						img.Set(x, y, color.RGBA{wave.col.R, wave.col.G, wave.col.B, a})
+					}
+				}
+			}
+		}
+	}
+
+	// Three dots inside bubble (ellipsis — "talking")
+	dotCenters := [][2]int{{5, 5}, {8, 5}, {11, 5}}
+	for _, dc := range dotCenters {
+		for y := 0; y < 16; y++ {
+			for x := 0; x < 16; x++ {
+				dx := float64(x) - float64(dc[0])
+				dy := float64(y) - float64(dc[1])
+				dist := math.Sqrt(dx*dx + dy*dy)
+				if dist < 1.2 {
+					img.Set(x, y, white)
+				}
+			}
+		}
 	}
 
 	return encodeICO(img)
@@ -67,10 +107,9 @@ func encodeICO(img *image.RGBA) []byte {
 		}
 	}
 
-	// AND mask (1 bit per pixel, rows padded to 4 bytes)
+	// AND mask
 	andMaskRowBytes := ((w + 31) / 32) * 4
 	andMask := make([]byte, andMaskRowBytes*h)
-	// All zeros = all opaque (alpha channel handles transparency)
 
 	bmpInfoSize := 40
 	pixelDataLen := pixelData.Len()
@@ -79,33 +118,30 @@ func encodeICO(img *image.RGBA) []byte {
 
 	var buf bytes.Buffer
 
-	// ICO header
-	binary.Write(&buf, binary.LittleEndian, uint16(0))     // reserved
-	binary.Write(&buf, binary.LittleEndian, uint16(1))     // type: icon
-	binary.Write(&buf, binary.LittleEndian, uint16(1))     // count
+	binary.Write(&buf, binary.LittleEndian, uint16(0))
+	binary.Write(&buf, binary.LittleEndian, uint16(1))
+	binary.Write(&buf, binary.LittleEndian, uint16(1))
 
-	// ICO directory entry
-	buf.WriteByte(byte(w)) // width (0 = 256)
-	buf.WriteByte(byte(h)) // height
-	buf.WriteByte(0)       // color palette
-	buf.WriteByte(0)       // reserved
-	binary.Write(&buf, binary.LittleEndian, uint16(1))     // color planes
-	binary.Write(&buf, binary.LittleEndian, uint16(32))    // bits per pixel
-	binary.Write(&buf, binary.LittleEndian, uint32(imageSize)) // size
-	binary.Write(&buf, binary.LittleEndian, uint32(22))    // offset (6 + 16)
+	buf.WriteByte(byte(w))
+	buf.WriteByte(byte(h))
+	buf.WriteByte(0)
+	buf.WriteByte(0)
+	binary.Write(&buf, binary.LittleEndian, uint16(1))
+	binary.Write(&buf, binary.LittleEndian, uint16(32))
+	binary.Write(&buf, binary.LittleEndian, uint32(imageSize))
+	binary.Write(&buf, binary.LittleEndian, uint32(22))
 
-	// BITMAPINFOHEADER
 	binary.Write(&buf, binary.LittleEndian, uint32(bmpInfoSize))
 	binary.Write(&buf, binary.LittleEndian, int32(w))
-	binary.Write(&buf, binary.LittleEndian, int32(h*2)) // height is doubled for ICO
-	binary.Write(&buf, binary.LittleEndian, uint16(1))  // planes
-	binary.Write(&buf, binary.LittleEndian, uint16(32)) // bpp
-	binary.Write(&buf, binary.LittleEndian, uint32(0))  // compression
+	binary.Write(&buf, binary.LittleEndian, int32(h*2))
+	binary.Write(&buf, binary.LittleEndian, uint16(1))
+	binary.Write(&buf, binary.LittleEndian, uint16(32))
+	binary.Write(&buf, binary.LittleEndian, uint32(0))
 	binary.Write(&buf, binary.LittleEndian, uint32(pixelDataLen+andMaskLen))
-	binary.Write(&buf, binary.LittleEndian, int32(0))   // x ppm
-	binary.Write(&buf, binary.LittleEndian, int32(0))   // y ppm
-	binary.Write(&buf, binary.LittleEndian, uint32(0))  // colors used
-	binary.Write(&buf, binary.LittleEndian, uint32(0))  // important colors
+	binary.Write(&buf, binary.LittleEndian, int32(0))
+	binary.Write(&buf, binary.LittleEndian, int32(0))
+	binary.Write(&buf, binary.LittleEndian, uint32(0))
+	binary.Write(&buf, binary.LittleEndian, uint32(0))
 
 	buf.Write(pixelData.Bytes())
 	buf.Write(andMask)

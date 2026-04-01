@@ -11,7 +11,7 @@ import (
 	"github.com/birbusTeam-oss/Yappie/internal/config"
 )
 
-const maxEntries = 50
+const maxEntries = 200
 
 // Entry is a single transcription record.
 type Entry struct {

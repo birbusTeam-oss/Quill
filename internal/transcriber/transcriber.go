@@ -26,11 +26,13 @@ type Transcriber struct {
 	WhisperPath   string // path to whisper executable
 	ModelPath     string // path to .bin model file
 	RemoveFillers bool
+	Language      string
+	Threads       int
 }
 
 // New creates a transcriber. If whisperPath is empty, it looks for whisper.exe
 // next to the yappie binary, then in PATH.
-func New(whisperPath, modelPath string, removeFillers bool) *Transcriber {
+func New(whisperPath, modelPath string, removeFillers bool, opts ...func(*Transcriber)) *Transcriber {
 	// If whisperPath from config doesn't actually exist, ignore it
 	if whisperPath != "" {
 		if _, err := os.Stat(whisperPath); err != nil {
@@ -82,23 +84,37 @@ func New(whisperPath, modelPath string, removeFillers bool) *Transcriber {
 			}
 		}
 	}
-	return &Transcriber{
+	t := &Transcriber{
 		WhisperPath:   whisperPath,
 		ModelPath:     modelPath,
 		RemoveFillers: removeFillers,
+		Language:      "en",
+		Threads:       4,
 	}
+	for _, o := range opts {
+		o(t)
+	}
+	return t
 }
 
 // Transcribe runs whisper on the given WAV file and returns cleaned text.
 func (t *Transcriber) Transcribe(wavPath string) (string, error) {
+	threads := fmt.Sprintf("%d", t.Threads)
+	if t.Threads < 1 {
+		threads = "4"
+	}
+	lang := t.Language
+	if lang == "" {
+		lang = "en"
+	}
 	args := []string{
 		"-f", wavPath,
 		"--no-timestamps",
 		"--output-txt",
-		"-l", "en",
-		"-t", "4",           // use 4 threads
-		"--no-prints",       // suppress progress output
-		"-bs", "1",          // beam size 1 = greedy (fastest)
+		"-l", lang,
+		"-t", threads,
+		"--no-prints",
+		"-bs", "1",
 	}
 	if t.ModelPath != "" {
 		args = append(args, "-m", t.ModelPath)

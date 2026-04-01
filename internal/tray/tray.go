@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 
 	"github.com/getlantern/systray"
@@ -21,19 +22,59 @@ const (
 	StatusError
 )
 
-// Windows API for balloon notifications
 var (
-	user32           = syscall.NewLazyDLL("user32.dll")
-	shell32          = syscall.NewLazyDLL("shell32.dll")
-	pMessageBeep     = user32.NewProc("MessageBeep")
+	user32       = syscall.NewLazyDLL("user32.dll")
+	pMessageBeep = user32.NewProc("MessageBeep")
 )
+
+// SessionStats tracks usage statistics for the current session.
+type SessionStats struct {
+	mu               sync.Mutex
+	TotalWords       int
+	TotalDictations  int
+	TotalErrors      int
+}
+
+func (s *SessionStats) AddDictation(words int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.TotalDictations++
+	s.TotalWords += words
+}
+
+func (s *SessionStats) AddError() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.TotalErrors++
+}
+
+func (s *SessionStats) Summary() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.TotalDictations == 0 {
+		return "No dictations this session"
+	}
+	return fmt.Sprintf("%d dictations · %d words", s.TotalDictations, s.TotalWords)
+}
+
+// Callbacks for menu actions
+type MenuCallbacks struct {
+	OnOpenHistory  func()
+	OnOpenConfig   func()
+	OnOpenLogs     func()
+	OnClearHistory func()
+}
 
 // Tray manages the system tray icon and menu.
 type Tray struct {
-	QuitCh       chan struct{}
-	hotkey       string
-	statusItem   *systray.MenuItem
-	lastWords    int
+	QuitCh    chan struct{}
+	hotkey    string
+	lastWords int
+	stats     *SessionStats
+	callbacks MenuCallbacks
+
+	statusItem *systray.MenuItem
+	statsItem  *systray.MenuItem
 }
 
 // New creates a tray manager.
@@ -41,7 +82,18 @@ func New(hotkey string) *Tray {
 	return &Tray{
 		QuitCh: make(chan struct{}),
 		hotkey: hotkey,
+		stats:  &SessionStats{},
 	}
+}
+
+// SetCallbacks configures menu action handlers.
+func (t *Tray) SetCallbacks(cb MenuCallbacks) {
+	t.callbacks = cb
+}
+
+// Stats returns the session stats for external updates.
+func (t *Tray) Stats() *SessionStats {
+	return t.stats
 }
 
 // Run starts the system tray. This BLOCKS — call from main goroutine.
@@ -49,20 +101,34 @@ func (t *Tray) Run(onReady func()) {
 	systray.Run(func() {
 		systray.SetTitle("Yappie")
 		systray.SetTooltip("Yappie — Ready (Hold " + t.hotkey + " to dictate)")
-		systray.SetIcon(yappieIcon) // Yappie icon
+		systray.SetIcon(yappieIcon)
 
-		// Status display
-		t.statusItem = systray.AddMenuItem("Ready — Hold "+t.hotkey, "")
+		// ── Status ──
+		t.statusItem = systray.AddMenuItem("⚡ Ready — Hold "+t.hotkey, "Current status")
 		t.statusItem.Disable()
 
+		t.statsItem = systray.AddMenuItem("    No dictations yet", "Session statistics")
+		t.statsItem.Disable()
+
 		systray.AddSeparator()
 
-		// Auto-start toggle
-		autoStart := systray.AddMenuItemCheckbox("Start with Windows", "Launch on login", isAutoStartEnabled())
-		
+		// ── Actions ──
+		mHistory := systray.AddMenuItem("📋 View History", "Open transcription history")
+		mConfig := systray.AddMenuItem("⚙️ Open Config", "Edit settings")
+		mLogs := systray.AddMenuItem("📄 View Logs", "Open log file")
+
 		systray.AddSeparator()
 
-		mQuit := systray.AddMenuItem("Quit Yappie", "Exit")
+		// ── Settings ──
+		autoStart := systray.AddMenuItemCheckbox("🚀 Start with Windows", "Launch on login", isAutoStartEnabled())
+
+		systray.AddSeparator()
+
+		// ── About / Quit ──
+		mAbout := systray.AddMenuItem("ℹ️ About Yappie", "Version info")
+		mAbout.Disable()
+
+		mQuit := systray.AddMenuItem("✖ Quit Yappie", "Exit application")
 
 		if onReady != nil {
 			onReady()
@@ -82,6 +148,22 @@ func (t *Tray) Run(onReady func()) {
 						enableAutoStart()
 						log.Println("Auto-start enabled")
 					}
+
+				case <-mHistory.ClickedCh:
+					if t.callbacks.OnOpenHistory != nil {
+						t.callbacks.OnOpenHistory()
+					}
+
+				case <-mConfig.ClickedCh:
+					if t.callbacks.OnOpenConfig != nil {
+						t.callbacks.OnOpenConfig()
+					}
+
+				case <-mLogs.ClickedCh:
+					if t.callbacks.OnOpenLogs != nil {
+						t.callbacks.OnOpenLogs()
+					}
+
 				case <-mQuit.ClickedCh:
 					close(t.QuitCh)
 					systray.Quit()
@@ -96,40 +178,43 @@ func (t *Tray) Run(onReady func()) {
 func (t *Tray) SetStatus(s Status) {
 	switch s {
 	case StatusRecording:
-		systray.SetIcon(makeIcon(0xEF, 0x44, 0x44)) // Red = recording
+		systray.SetIcon(makeIcon(0xEF, 0x44, 0x44))
 		systray.SetTooltip("Yappie — Recording...")
 		if t.statusItem != nil {
-			t.statusItem.SetTitle("Recording... (release " + t.hotkey + " to stop)")
+			t.statusItem.SetTitle("🔴 Recording... (release " + t.hotkey + ")")
 		}
 	case StatusTranscribing:
-		systray.SetIcon(makeIcon(0xF5, 0x9E, 0x0B)) // Amber = processing
+		systray.SetIcon(makeIcon(0xF5, 0x9E, 0x0B))
 		systray.SetTooltip("Yappie — Transcribing...")
 		if t.statusItem != nil {
-			t.statusItem.SetTitle("Transcribing...")
+			t.statusItem.SetTitle("⏳ Transcribing...")
 		}
 	case StatusDone:
-		systray.SetIcon(makeIcon(0x10, 0xB9, 0x81)) // Green = success
+		systray.SetIcon(makeIcon(0x10, 0xB9, 0x81))
 		systray.SetTooltip("Yappie — Done!")
 		if t.statusItem != nil {
 			if t.lastWords > 0 {
-				t.statusItem.SetTitle(fmt.Sprintf("Injected %d words", t.lastWords))
+				t.statusItem.SetTitle(fmt.Sprintf("✅ Injected %d words", t.lastWords))
 			} else {
-				t.statusItem.SetTitle("Text injected!")
+				t.statusItem.SetTitle("✅ Text injected!")
 			}
 		}
-		// Play a subtle success sound
-		go pMessageBeep.Call(0x00000040) // MB_ICONINFORMATION
+		// Update session stats display
+		if t.statsItem != nil {
+			t.statsItem.SetTitle("    " + t.stats.Summary())
+		}
+		go pMessageBeep.Call(0x00000040)
 	case StatusError:
-		systray.SetIcon(makeIcon(0xEF, 0x44, 0x44)) // Red = error
+		systray.SetIcon(makeIcon(0xEF, 0x44, 0x44))
 		systray.SetTooltip("Yappie — Error")
 		if t.statusItem != nil {
-			t.statusItem.SetTitle("Error — check log")
+			t.statusItem.SetTitle("❌ Error — check logs")
 		}
 	default: // Idle
-		systray.SetIcon(yappieIcon) // Yappie icon
+		systray.SetIcon(yappieIcon)
 		systray.SetTooltip("Yappie — Ready (Hold " + t.hotkey + " to dictate)")
 		if t.statusItem != nil {
-			t.statusItem.SetTitle("Ready — Hold " + t.hotkey)
+			t.statusItem.SetTitle("⚡ Ready — Hold " + t.hotkey)
 		}
 	}
 }
@@ -141,49 +226,43 @@ func (t *Tray) SetLastWordCount(n int) {
 
 // makeIcon creates a simple colored square ICO.
 func makeIcon(r, g, b byte) []byte {
-	// 16x16 BMP icon
 	const size = 16
-	
-	// ICO header
+
 	ico := []byte{
-		0, 0, // reserved
-		1, 0, // type (icon)
-		1, 0, // count
+		0, 0,
+		1, 0,
+		1, 0,
 	}
-	// ICO directory entry
-	ico = append(ico, 16, 16, 0, 0) // width, height, palette, reserved
-	ico = append(ico, 1, 0)                          // color planes
-	ico = append(ico, 32, 0)                         // bits per pixel
-	
-	// dataSize = 40 (header) + 1024 (pixels) = 1064 // BITMAPINFOHEADER + pixels
+	ico = append(ico, 16, 16, 0, 0)
+	ico = append(ico, 1, 0)
+	ico = append(ico, 32, 0)
+
 	ico = append(ico,
 		0x28, 0x04, 0x00, 0x00,
 	)
-	offset := uint32(22) // offset to BMP data
+	offset := uint32(22)
 	ico = append(ico,
 		byte(offset), byte(offset>>8), byte(offset>>16), byte(offset>>24),
 	)
-	
-	// BITMAPINFOHEADER
+
 	ico = append(ico,
-		40, 0, 0, 0, // header size
-		byte(size), 0, 0, 0, // width
-		32, 0, 0, 0, // height (doubled for ICO)
-		1, 0, // planes
-		32, 0, // bpp
-		0, 0, 0, 0, // compression
+		40, 0, 0, 0,
+		byte(size), 0, 0, 0,
+		32, 0, 0, 0,
+		1, 0,
+		32, 0,
+		0, 0, 0, 0,
 		0x00, 0x04, 0x00, 0x00,
-		0, 0, 0, 0, // x ppm
-		0, 0, 0, 0, // y ppm
-		0, 0, 0, 0, // colors used
-		0, 0, 0, 0, // important colors
+		0, 0, 0, 0,
+		0, 0, 0, 0,
+		0, 0, 0, 0,
+		0, 0, 0, 0,
 	)
-	
-	// Pixel data (BGRA, bottom-up)
+
 	for i := 0; i < size*size; i++ {
-		ico = append(ico, b, g, r, 0xFF) // BGRA
+		ico = append(ico, b, g, r, 0xFF)
 	}
-	
+
 	return ico
 }
 
@@ -209,7 +288,7 @@ func enableAutoStart() {
 	if exe == "" {
 		return
 	}
-	cmd := exec.Command("reg", "add", 
+	cmd := exec.Command("reg", "add",
 		`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
 		"/v", "Yappie", "/t", "REG_SZ", "/d", `"`+exe+`"`, "/f")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
